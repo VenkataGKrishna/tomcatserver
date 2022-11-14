@@ -1,33 +1,59 @@
-try{
-	node{
-	    properties([parameters([choice(choices: ['master', 'dev', 'qa', 'staging'], description: 'Choose branch to build and deploy', name: 'gitBranch')]), pipelineTriggers([pollSCM('')])])
-    stage('Git Checkout'){
-		git credentialsId: 'github', 
-		    url: 'https://github.com/javahometech/my-app',
-			branch: "${params.gitBranch}"
-	}
-	
-	stage('Maven Build'){
-		sh 'mvn clean package'
-	}
-	stage('Deploy to Dev'){
-		sh 'mv target/*.war target/myweb.war'
-		sshagent(['tomcat-dev']) {
-			sh 'ssh ec2-user@172.31.17.196 rm -rf /opt/tomcat8/webapps/myweb*'
-		    sh 'scp target/myweb.war ec2-user@172.31.17.196:/opt/tomcat8/webapps/'
-		    sh 'ssh ec2-user@172.31.17.196 sudo service tomcat restart'
-		}
-	    slackSend channel: '#devops-2',
-				  color: 'good',
-				  message: "Job -  ${env.JOB_NAME}, Completed successfully Build URL is ${env.BUILD_URL}"
-
-
-	}
-}
-
-}catch(error){
-  slackSend channel: '#devops-2',
-				  color: 'danger',
-				  message: "Job -  ${env.JOB_NAME}, Failed, Build URL is ${env.BUILD_URL}"
-   error 'Something wrong'
+pipeline{
+    agent any
+     tools {
+        maven 'Maven-3.6.1'
+    }
+    
+    environment{
+        PATH = "/opt/maven3/bin:$PATH"
+    }
+    stages{
+        stage("Git Checkout"){
+            steps{
+                git credentialsId: 'javahome2', url: 'https://github.com/srinicloud87/myweb.git'
+            }
+        }
+        stage("Maven Build"){
+            steps{
+                sh "mvn clean sonar:sonar package"
+                
+            }
+        }
+        stage('Upload War To Nexus'){
+            steps{
+                  nexusArtifactUploader artifacts: [
+                       [
+                            artifactId: 'myweb', 
+                            classifier: '', 
+                            file: "target/myweb-8.2.0.war", 
+                            type: 'war'
+                       ]
+                  ], 
+                  credentialsId: 'nexus3', 
+                  groupId: 'in.javahome', 
+                  nexusUrl: '18.218.173.211:8081', 
+                  nexusVersion: 'nexus3', 
+                  protocol: 'http', 
+                  repository: 'tomcat-release', 
+                  version: '8.2.0'  
+              }
+            }
+       /* stage('Build Docker Image'){
+            steps{
+                 sh 'docker build -t raghunadh181/spring-boot-mongo .'
+                 sh 'docker build -t tomcat:${BUILD_NUMBER} .'
+                 sh 'docker run -itd --name srini26 -p 3900:8080 tomcat:${BUILD_NUMBER}'
+             }
+         }
+        stage('Push Docker Image'){
+             steps{
+                  withCredentials([string(credentialsId: 'DOCKER_HUB_CREDENTIALS', variable: 'DOCKER_HUB_CREDENTIALS')]) {
+                      sh "docker login -u raghunadh181 -p ${DOCKER_HUB_CREDENTIALS}"
+            }
+            sh 'docker push raghunadh181/spring-boot-mongo'
+        }
+      } */
+        
+        
+    }
 }
