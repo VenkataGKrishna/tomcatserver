@@ -4,13 +4,10 @@ pipeline{
         maven 'Maven-3.6.1'
     }
     
-    environment{
-        PATH = "/opt/maven3/bin:$PATH"
-    }
     stages{
         stage("Git Checkout"){
             steps{
-                git credentialsId: 'javahome2', url: 'https://github.com/srinicloud87/myweb.git'
+                git 'https://github.com/VenkataGKrishna/tomcatserver.git'
             }
         }
         stage("Maven Build"){
